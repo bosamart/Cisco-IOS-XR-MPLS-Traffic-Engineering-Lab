@@ -1,0 +1,29 @@
+# ===== MPLS-TE lab .gitignore =====
+# Keeps the repo to lab content only: README, configs/, docs/, notes/, *.unl
+# Everything below is local junk that shouldn't be pushed.
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editor / IDE ---
+.vscode/
+.idea/
+*.swp
+*~
+
+# --- EVE-NG / temp lab artifacts ---
+*.tmp
+*.bak
+*.log
+*.old
+__pycache__/
+
+# --- Helper scripts that live in the parent folder, not the repo ---
+push-*.ps1
+push-*.bat
+push-via-api.ps1
+
+# NOTE: xrv9000-mpls-te-lab.unl is intentionally NOT ignored — the topology
+# file belongs in the repo so others can import the lab into EVE-NG.
