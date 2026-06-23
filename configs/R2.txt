@@ -6,8 +6,13 @@
 ! Phase 5 : FRR auto-tunnel backup (R2 is a PLR for R1->R2->R4 path)
 ! IPv4 Lo0 2.2.2.2/32
 ! Links: Gi0/0/0/0->R1, Gi0/0/0/1->R3 (cross-link), Gi0/0/0/3->R4
+! NOTE: new XR interfaces may come up admin-down -- 'no shutdown' when pasting.
 ! ====================================================================
 hostname R2
+!
+! ===== Phase 5: REQUIRED source for auto-created TE (backup) tunnels =====
+! Without this, auto-tunnel backups stay down: "No IP source address is configured".
+ipv4 unnumbered mpls traffic-eng Loopback0
 !
 ! ===== Interfaces =====
 interface Loopback0
@@ -79,10 +84,14 @@ mpls traffic-eng
  interface GigabitEthernet0/0/0/0
  !
  interface GigabitEthernet0/0/0/1
+  ! Phase 5: protect the ON-PATH cross-link (LSP egresses R2 here toward R3).
+  ! Per-interface auto-tunnel backup is what actually enables protection on
+  ! this interface; the global block below only sets the tunnel-id pool.
+  auto-tunnel backup
  !
  interface GigabitEthernet0/0/0/3
  !
- ! Phase 5: auto-tunnel backup (R2 = PLR for tunnel R1->R4 via R2)
+ ! Phase 5: auto-tunnel backup pool (R2 = PLR for tunnel R1->R4 via R2)
  auto-tunnel backup
   tunnel-id min 100 max 200
  !

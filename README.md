@@ -291,33 +291,50 @@ path and SR labels encode it. RSVP FRR requires you to explicitly configure back
 tunnels (or enable auto-tunnel backup). TI-LFA requires no core state; RSVP FRR
 adds more RSVP state.
 
-**Auto-tunnel backup** (simplest approach in IOS-XR):
+**Auto-tunnel backup** (simplest approach in IOS-XR). Two gotchas the lab verification
+surfaced — both are now in the configs:
+
+1. Auto-created tunnels need a **source address**, or every bypass stays down with
+   *"No IP source address is configured"*:
+
+   ```
+   ! global, on each PLR:
+   ipv4 unnumbered mpls traffic-eng Loopback0
+   ```
+
+2. Protection is enabled **per on-path interface**. The global block only sets the
+   tunnel-id pool — you must also enable it on the interface the LSP egresses:
+
+   ```
+   ! On the PLRs (the P routers):
+   mpls traffic-eng
+    interface GigabitEthernet0/0/0/1   ! R2: the ON-PATH cross-link to R3
+     auto-tunnel backup
+    !
+    auto-tunnel backup
+     tunnel-id min 100 max 200
+   ```
 
 ```
-! Enable on every P router (the PLRs):
-mpls traffic-eng
- auto-tunnel backup
-  tunnel-id min 100 max 200
-  nhop-only            ! link protection only, or remove for node protection
-
 ! Enable FRR on the protected tunnel (headend R1):
 interface tunnel-te1
- fast-reroute
- fast-reroute protect bandwidth
  fast-reroute protect node
 ```
+
+> **Node protection only works at R2 in this topology.** At R3 the next hop is R4 —
+> the tunnel tail — so there is no next-next hop to bypass to; R3 can only do link
+> protection. R2 has a direct link to R4, so it can bypass node R3 entirely.
 
 **Verify**
 
 ```
-show mpls traffic-eng tunnels backup         ! auto-bypass tunnels created
-show mpls traffic-eng fast-reroute database  ! protected prefixes and bypass
-show mpls traffic-eng tunnels protection     ! per-tunnel FRR status
+show mpls traffic-eng tunnels backup         ! auto-bypass tunnels (want Oper: up)
+show mpls traffic-eng fast-reroute database  ! protected LSP -> bypass, state Ready
 
-! Prove it: ping with 1000 packets, shut a link mid-ping
-ping 4.4.4.4 source 1.1.1.1 count 1000
-! (on R2) interface GigabitEthernet0/0/0/3 -> shutdown
-! expect near-zero loss
+! Prove it: long ping, then shut the ON-PATH cross-link mid-ping
+ping 4.4.4.4 source 1.1.1.1 count 100000
+! (on R2) interface GigabitEthernet0/0/0/1 -> shutdown   ! NOT Gi0/0/0/3 (off-path!)
+! FRR database flips Ready -> Active; expect near-zero loss
 ```
 
 ---
