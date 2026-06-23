@@ -1,0 +1,90 @@
+! ====================================================================
+! R3 - P  (Provider core)  -- FINAL (Phases 1-5)
+! Phase 1 : IS-IS L2 baseline
+! Phase 2 : LDP label distribution
+! Phase 3 : RSVP + MPLS-TE interface enablement
+! Phase 5 : FRR auto-tunnel backup
+! IPv4 Lo0 3.3.3.3/32
+! Links: Gi0/0/0/0->R2 (cross-link), Gi0/0/0/2->R1, Gi0/0/0/4->R4
+! ====================================================================
+hostname R3
+!
+! ===== Interfaces =====
+interface Loopback0
+ ipv4 address 3.3.3.3 255.255.255.255
+!
+interface GigabitEthernet0/0/0/0
+ ipv4 address 10.23.0.2 255.255.255.252
+!
+interface GigabitEthernet0/0/0/2
+ ipv4 address 10.13.0.2 255.255.255.252
+!
+interface GigabitEthernet0/0/0/4
+ ipv4 address 10.34.0.1 255.255.255.252
+!
+! ===== Phase 1: IS-IS =====
+router isis CORE
+ is-type level-2-only
+ net 49.0001.0000.0000.0003.00
+ address-family ipv4 unicast
+  metric-style wide
+  mpls traffic-eng level-2-only
+  mpls traffic-eng router-id Loopback0
+ !
+ interface Loopback0
+  passive
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/0
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/2
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/4
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+!
+! ===== Phase 2: LDP =====
+mpls ldp
+ router-id 3.3.3.3
+ interface GigabitEthernet0/0/0/0
+ !
+ interface GigabitEthernet0/0/0/2
+ !
+ interface GigabitEthernet0/0/0/4
+ !
+!
+! ===== Phase 3: RSVP =====
+rsvp
+ interface GigabitEthernet0/0/0/0
+  bandwidth 1000000
+ !
+ interface GigabitEthernet0/0/0/2
+  bandwidth 1000000
+ !
+ interface GigabitEthernet0/0/0/4
+  bandwidth 1000000
+ !
+!
+! ===== Phase 3: MPLS-TE global =====
+mpls traffic-eng
+ interface GigabitEthernet0/0/0/0
+ !
+ interface GigabitEthernet0/0/0/2
+ !
+ interface GigabitEthernet0/0/0/4
+ !
+ ! Phase 5: auto-tunnel backup (R3 = PLR for tunnel R1->R4 via R3)
+ auto-tunnel backup
+  tunnel-id min 100 max 200
+ !
+!
+end

@@ -1,0 +1,136 @@
+! ====================================================================
+! R1 - PE  (Provider Edge)  -- FINAL (Phases 1-6)
+! Phase 1 : IS-IS L2 baseline
+! Phase 2 : LDP label distribution
+! Phase 3 : RSVP + explicit-path TE tunnel (scenic R1->R2->R3->R4)
+! Phase 4 : CSPF + autoroute (tunnel in routing table)
+! Phase 5 : FRR enabled on tunnel
+! Phase 6 : L3VPN (MP-BGP VPNv4) over MPLS-TE
+! IPv4 Lo0 1.1.1.1/32
+! NOTE: new XR interfaces may come up admin-down -- 'no shutdown' when pasting.
+! ====================================================================
+hostname R1
+!
+! ===== Phase 6: VRF =====
+vrf CUST-A
+ address-family ipv4 unicast
+  import route-target
+   100:1
+  !
+  export route-target
+   100:1
+  !
+ !
+!
+route-policy PASS
+  pass
+end-policy
+!
+! ===== Phase 3: Explicit paths =====
+explicit-path name SCENIC-R1-TO-R4
+ index 10 next-address strict ipv4 unicast 10.12.0.2
+ index 20 next-address strict ipv4 unicast 10.23.0.2
+ index 30 next-address strict ipv4 unicast 10.34.0.2
+!
+! ===== Interfaces =====
+interface Loopback0
+ ipv4 address 1.1.1.1 255.255.255.255
+!
+interface GigabitEthernet0/0/0/0
+ vrf CUST-A
+ ipv4 address 192.168.11.1 255.255.255.252
+!
+interface GigabitEthernet0/0/0/1
+ ipv4 address 10.12.0.1 255.255.255.252
+!
+interface GigabitEthernet0/0/0/3
+ ipv4 address 10.13.0.1 255.255.255.252
+!
+! ===== Phase 3/4/5: TE tunnel =====
+interface tunnel-te1
+ ipv4 unnumbered Loopback0
+ destination 4.4.4.4
+ autoroute announce                    ! Phase 4: inject into routing table
+ fast-reroute                          ! Phase 5: enable FRR
+ fast-reroute protect bandwidth
+ fast-reroute protect node
+ signalled-bandwidth 100000            ! Phase 4: reserve 100 Mbps
+ path-option 1 explicit name SCENIC-R1-TO-R4   ! Phase 3: forced scenic path
+ path-option 2 dynamic                          ! Phase 4: CSPF fallback
+!
+! ===== Phase 1: IS-IS =====
+router isis CORE
+ is-type level-2-only
+ net 49.0001.0000.0000.0001.00
+ address-family ipv4 unicast
+  metric-style wide
+  mpls traffic-eng level-2-only        ! Phase 3: flood TE topology
+  mpls traffic-eng router-id Loopback0 ! Phase 3
+ !
+ interface Loopback0
+  passive
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/1
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/3
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+!
+! ===== Phase 2: LDP =====
+mpls ldp
+ router-id 1.1.1.1
+ interface GigabitEthernet0/0/0/1
+ !
+ interface GigabitEthernet0/0/0/3
+ !
+!
+! ===== Phase 3: RSVP =====
+rsvp
+ interface GigabitEthernet0/0/0/1
+  bandwidth 1000000
+ !
+ interface GigabitEthernet0/0/0/3
+  bandwidth 1000000
+ !
+!
+! ===== Phase 3: MPLS-TE global =====
+mpls traffic-eng
+ interface GigabitEthernet0/0/0/1
+ !
+ interface GigabitEthernet0/0/0/3
+ !
+ reoptimize 300
+!
+! ===== Phase 6: BGP for L3VPN =====
+router bgp 100
+ bgp router-id 1.1.1.1
+ address-family vpnv4 unicast
+ !
+ neighbor 4.4.4.4
+  remote-as 100
+  update-source Loopback0
+  address-family vpnv4 unicast
+  !
+ !
+ vrf CUST-A
+  rd 100:1
+  address-family ipv4 unicast
+   redistribute connected
+  !
+  neighbor 192.168.11.2
+   remote-as 65001
+   address-family ipv4 unicast
+    route-policy PASS in
+    route-policy PASS out
+   !
+  !
+ !
+!
+end

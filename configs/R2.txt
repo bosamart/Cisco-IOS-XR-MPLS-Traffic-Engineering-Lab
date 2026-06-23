@@ -1,0 +1,90 @@
+! ====================================================================
+! R2 - P  (Provider core)  -- FINAL (Phases 1-5)
+! Phase 1 : IS-IS L2 baseline
+! Phase 2 : LDP label distribution
+! Phase 3 : RSVP + MPLS-TE interface enablement
+! Phase 5 : FRR auto-tunnel backup (R2 is a PLR for R1->R2->R4 path)
+! IPv4 Lo0 2.2.2.2/32
+! Links: Gi0/0/0/0->R1, Gi0/0/0/1->R3 (cross-link), Gi0/0/0/3->R4
+! ====================================================================
+hostname R2
+!
+! ===== Interfaces =====
+interface Loopback0
+ ipv4 address 2.2.2.2 255.255.255.255
+!
+interface GigabitEthernet0/0/0/0
+ ipv4 address 10.12.0.2 255.255.255.252
+!
+interface GigabitEthernet0/0/0/1
+ ipv4 address 10.23.0.1 255.255.255.252
+!
+interface GigabitEthernet0/0/0/3
+ ipv4 address 10.24.0.1 255.255.255.252
+!
+! ===== Phase 1: IS-IS =====
+router isis CORE
+ is-type level-2-only
+ net 49.0001.0000.0000.0002.00
+ address-family ipv4 unicast
+  metric-style wide
+  mpls traffic-eng level-2-only        ! Phase 3
+  mpls traffic-eng router-id Loopback0 ! Phase 3
+ !
+ interface Loopback0
+  passive
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/0
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/1
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+ interface GigabitEthernet0/0/0/3
+  point-to-point
+  address-family ipv4 unicast
+  !
+ !
+!
+! ===== Phase 2: LDP =====
+mpls ldp
+ router-id 2.2.2.2
+ interface GigabitEthernet0/0/0/0
+ !
+ interface GigabitEthernet0/0/0/1
+ !
+ interface GigabitEthernet0/0/0/3
+ !
+!
+! ===== Phase 3: RSVP =====
+rsvp
+ interface GigabitEthernet0/0/0/0
+  bandwidth 1000000
+ !
+ interface GigabitEthernet0/0/0/1
+  bandwidth 1000000
+ !
+ interface GigabitEthernet0/0/0/3
+  bandwidth 1000000
+ !
+!
+! ===== Phase 3: MPLS-TE global =====
+mpls traffic-eng
+ interface GigabitEthernet0/0/0/0
+ !
+ interface GigabitEthernet0/0/0/1
+ !
+ interface GigabitEthernet0/0/0/3
+ !
+ ! Phase 5: auto-tunnel backup (R2 = PLR for tunnel R1->R4 via R2)
+ auto-tunnel backup
+  tunnel-id min 100 max 200
+ !
+!
+end

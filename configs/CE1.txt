@@ -1,0 +1,30 @@
+! ====================================================================
+! CE1 - Customer Edge  (AS 65001)
+! eBGP to R1 on Gi0/0/0/1 | Loopback 11.11.11.11/32
+! ====================================================================
+hostname CE1
+!
+route-policy PASS
+  pass
+end-policy
+!
+interface Loopback0
+ ipv4 address 11.11.11.11 255.255.255.255
+!
+interface GigabitEthernet0/0/0/1
+ ipv4 address 192.168.11.2 255.255.255.252
+!
+router bgp 65001
+ bgp router-id 11.11.11.11
+ address-family ipv4 unicast
+  network 11.11.11.11/32
+ !
+ neighbor 192.168.11.1
+  remote-as 100
+  address-family ipv4 unicast
+   route-policy PASS in
+   route-policy PASS out
+  !
+ !
+!
+end
