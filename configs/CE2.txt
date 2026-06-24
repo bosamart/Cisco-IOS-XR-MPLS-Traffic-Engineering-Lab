@@ -1,6 +1,8 @@
 ! ====================================================================
 ! CE2 - Customer Edge  (AS 65002)
 ! eBGP to R4 on Gi0/0/0/0 | Loopback 22.22.22.22/32
+! NOTE: new XR interfaces may come up admin-down -- 'no shutdown' when pasting.
+! EVE wiring must match: CE2 Gi0/0/0/0 <-> R4 Gi0/0/0/1.
 ! ====================================================================
 hostname CE2
 !

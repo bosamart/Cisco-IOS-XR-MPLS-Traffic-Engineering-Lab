@@ -11,7 +11,7 @@
 - [x] Phase 3 — RSVP-TE basic tunnel with explicit path
 - [x] Phase 4 — CSPF path computation + autoroute
 - [x] Phase 5 — FRR link and node protection
-- [ ] Phase 6 — L3VPN over MPLS-TE
+- [x] Phase 6 — L3VPN over MPLS-TE
 
 ## Lab Topology
 > Same diamond as SR-MPLS lab: R1(PE) – R2(P) – R4(PE), R1 – R3(P) – R4, R2–R3 cross-link
@@ -31,8 +31,11 @@ SR-MPLS lab: ../SR-MPLS/ — same topology, same services, SR transport instead 
 | 2026-06-24 | Phase 3 | RSVP-TE tunnel up on scenic path R1→R2→R3→R4 (RRO confirms); fixed TE flooding on R1/R2 + missing path-option | ✅ Pass |
 | 2026-06-24 | Phase 4 | autoroute injects tunnel into RIB; traceroute collapses ECMP → single scenic path; fixed missing `autoroute announce` | ✅ Pass |
 | 2026-06-24 | Phase 5 | FRR Ready→Active on R2 cross-link fail; LSP reroutes to bypass tt100. Fixes: README test i/f wrong, node-prot only at R2, missing `ipv4 unnumbered mpls traffic-eng Lo0` | ✅ Pass |
+| 2026-06-24 | Phase 6 | CE1↔CE2 L3VPN ping 100%; R1 CEF for 22.22.22.22 resolves via tunnel-te1 (VPN label 24007 in tunnel). Fixed CE2-R4 EVE wiring mismatch | ✅ Pass |
 
-> Detailed per-phase output: [`phase1-isis-verify.md`](phase1-isis-verify.md), [`phase2-ldp-verify.md`](phase2-ldp-verify.md), [`phase3-rsvp-te-verify.md`](phase3-rsvp-te-verify.md), [`phase4-cspf-autoroute-verify.md`](phase4-cspf-autoroute-verify.md), [`phase5-frr-verify.md`](phase5-frr-verify.md)
+> Detailed per-phase output: [`phase1-isis-verify.md`](phase1-isis-verify.md), [`phase2-ldp-verify.md`](phase2-ldp-verify.md), [`phase3-rsvp-te-verify.md`](phase3-rsvp-te-verify.md), [`phase4-cspf-autoroute-verify.md`](phase4-cspf-autoroute-verify.md), [`phase5-frr-verify.md`](phase5-frr-verify.md), [`phase6-l3vpn-verify.md`](phase6-l3vpn-verify.md)
+
+**All six phases verified end to end. ✅**
 
 ## Lessons Learned
 - `show clns interface brief` is IOS, not IOS-XR — use `show isis interface brief` on XR.

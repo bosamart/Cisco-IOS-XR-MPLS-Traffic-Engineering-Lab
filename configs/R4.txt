@@ -6,9 +6,10 @@
 ! Phase 5 : FRR auto-tunnel backup
 ! Phase 6 : L3VPN (MP-BGP VPNv4) over MPLS-TE
 ! IPv4 Lo0 4.4.4.4/32
-! Links: Gi0/0/0/2->R2, Gi0/0/0/3->R3
+! Links: Gi0/0/0/1->CE2 (CUST-A), Gi0/0/0/2->R2, Gi0/0/0/3->R3
 ! NOTE: new XR interfaces may come up admin-down -- 'no shutdown' when pasting.
 !       (Gi0/0/0/1 to CE2 in particular -- if it stays shut, L3VPN won't form.)
+! EVE wiring must match: R4 Gi0/0/0/1 <-> CE2 Gi0/0/0/0.
 ! ====================================================================
 hostname R4
 !
