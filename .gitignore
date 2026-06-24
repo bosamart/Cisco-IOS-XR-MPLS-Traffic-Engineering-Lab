@@ -20,10 +20,10 @@ desktop.ini
 *.old
 __pycache__/
 
+# --- EVE-NG topology export (kept local, not published) ---
+*.unl
+
 # --- Helper scripts that live in the parent folder, not the repo ---
 push-*.ps1
 push-*.bat
 push-via-api.ps1
-
-# NOTE: xrv9000-mpls-te-lab.unl is intentionally NOT ignored — the topology
-# file belongs in the repo so others can import the lab into EVE-NG.
