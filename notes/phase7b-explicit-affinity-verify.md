@@ -107,7 +107,38 @@ no interface tunnel-te3
 no explicit-path name NORTH-R1-TO-R4
 ```
 
-## Open item
-The `verbatim` SCENIC attempt returned `no route to dest` at R2 even with the cross-link
-IS-IS-up. Worth a later look at RSVP signalling across the R2↔R3 cross-link (IS-IS up ≠
-RSVP up). Not blocking — `tunnel-te1` and L3VPN are healthy on their working path.
+## Lesson 4 — IS-IS, RSVP, and `mpls traffic-eng interface` are THREE separate layers
+
+After the affinity fix, the scenic path (and `tunnel-te1`'s preferred path-option 1) still
+wouldn't come up — failing at **PCALC** with `No path to destination (unknown)`: CSPF
+couldn't even compute the path, never mind signal it. Chasing it down:
+
+- `tunnel-te4` pinned to SCENIC (colors ignored, no fallback) failed at **PCALC**, not
+  signalling — so the path can't be *computed* = a TE-topology problem.
+- R1's TE topology had only **one direction** of the R2↔R3 cross-link (the half advertised
+  by R3): `show mpls traffic-eng topology brief | include 10.23` showed just `10.23.0.2`.
+- **R2 link-management showed `Links Count: 2`** (should be 3). R2 was **not** advertising
+  the cross-link `Gi0/0/0/1` into TE — even though IS-IS was adjacent and RSVP was enabled.
+
+**Root cause:** R2's running config had drifted (post-restart) and lost
+`mpls traffic-eng interface GigabitEthernet0/0/0/1`. A link needs **three independent
+things** to be usable for TE, all on the same wire:
+
+| Layer | Command | If missing... |
+|-------|---------|---------------|
+| IS-IS adjacency | `router isis / interface` | IGP can't route over it |
+| RSVP | `rsvp interface` | can't signal an LSP across it (Signalled error) |
+| TE advertisement | `mpls traffic-eng interface` | link invisible to CSPF (PCALC "no path") |
+
+R2↔R3 had the first two but not the third. **Fix:** re-add
+`mpls traffic-eng interface GigabitEthernet0/0/0/1` on R2 → link count went to 3, cross-link
+flooded, `tunnel-te4` came up on SCENIC (RRO `10.12.0.2 → 10.23.0.2 → 10.34.0.2`), and
+`tunnel-te1` reoptimized back to its preferred scenic path-option.
+
+> **Senior-level takeaway:** read the *error type*. `PCALC Error` = CSPF / TE topology
+> (is the link advertised? affinity? bandwidth?). `Signalled Error` = RSVP along the path.
+> They point you at different layers. The earlier `verbatim` "no route to dest" was a
+> transient red herring; the persistent fault was this TE-advertisement gap.
+
+(The repo `configs/R2.txt` already carries `mpls traffic-eng interface Gi0/0/0/1` — this was
+live-router drift after the 2-day restart, not a file bug.)
