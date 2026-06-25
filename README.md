@@ -15,7 +15,10 @@ before Segment Routing, and understanding it makes SR-TE's advantages obvious.
 > works — *then* move to the next phase. You don't need to understand everything upfront;
 > the concepts click as you build.
 >
-> Want the theory first? → [`docs/CONCEPTS.md`](docs/CONCEPTS.md)
+> **New to MPLS-TE?** Start with the [Beginner Guide](docs/BEGINNER-GUIDE.md) — it
+> explains the *why* behind every phase in plain language. Theory reference:
+> [`docs/CONCEPTS.md`](docs/CONCEPTS.md) · command cheat-sheet:
+> [`docs/TE-Config-Guide.md`](docs/TE-Config-Guide.md).
 
 > **Read this alongside the SR-MPLS lab.**
 > Both labs use the **same topology and addressing**. The only difference is the
@@ -67,28 +70,11 @@ All `!!!!!` → the whole stack (IS-IS → LDP → RSVP-TE → CSPF/autoroute �
 
 Same diamond as the SR-MPLS lab — same routers, same links, same addresses.
 
-```
-             +-------+
-    +--------|  R2   |--------+
-    |        |  (P)  |        |
-    |        +---+---+        |
-    |            | cross-link |
-+---+----+       |         +--+-----+
-|  R1    |       |         |  R4    |
-|  (PE)  |       |         |  (PE)  |
-+---+----+       |         +--+-----+
-    |        +---+---+        |
-    +--------|  R3   |--------+
-    |        |  (P)  |        |
-    |        +-------+        |
- +--+--+                   +--+--+
- | CE1 |                   | CE2 |
- +-----+                   +-----+
-```
+![MPLS-TE diamond topology](diagrams/topology.svg)
 
 The diamond gives two equal-cost paths (R1→R2→R4 and R1→R3→R4) plus a cross-link
 (R2↔R3). This makes TE meaningful — you can force traffic onto a non-shortest path,
-and FRR has a real detour to use.
+and FRR has a real detour to use. The GOLD/BRONZE coloring is the Phase 7 affinity demo.
 
 ---
 
