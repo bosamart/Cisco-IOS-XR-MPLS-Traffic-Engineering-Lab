@@ -28,6 +28,9 @@ crystal clear.
 | Config complexity | High — RSVP + TE interfaces + explicit-path + tunnel | Low — segment-list + SR-TE policy |
 | Troubleshooting | `show rsvp session` on every hop | `show sr-te policy` on headend only |
 | Hardware requirement | Any MPLS-capable router | SR-capable (prefix-SID in IGP) |
+| Affinity / link color (Phase 7) | Admin-groups flooded in IGP; CSPF honors include/exclude | Same admin-groups; headend/PCE honors them when computing the SID list |
+| Auto-bandwidth (Phase 8) | **Native** — the tunnel resizes its own RSVP reservation | No in-band reservation; a controller/PCE resizes the policy and recomputes |
+| Priority / preemption (Phase 9) | **Native** — signaled setup/hold priority; RSVP preempts in-band | No signaling — a stateful PCE arbitrates bandwidth between policies centrally |
 
 ---
 
@@ -91,6 +94,29 @@ state on every router it passes through too.
 
 No bypass tunnel configuration. No extra RSVP state. The repair path is encoded in
 the data plane as SR labels — no separate signaling needed.
+
+---
+
+## Where the Phase 7–9 features land in SR-TE
+
+The advanced knobs you built in this lab show the same RSVP-TE-vs-SR-TE split:
+
+- **Affinity / coloring (Phase 7)** — *shared concept.* Admin-group colors are an IGP
+  property, so both worlds use the same flooded colors. The difference is only who honors
+  them: RSVP-TE's headend CSPF, vs SR-TE's headend or PCE when it builds the SID list.
+- **Auto-bandwidth (Phase 8)** — *RSVP-native, controller-side in SR.* Auto-bw works
+  because RSVP holds a per-tunnel reservation it can resize in-band. SR-TE has no in-band
+  reservation, so the equivalent ("size the policy to measured demand") is a job for a
+  **controller/PCE** that watches traffic and re-programs the policy.
+- **Priority / preemption (Phase 9)** — *RSVP-native, PCE-arbitrated in SR.* RSVP preempts
+  in the data/control plane via signaled setup/hold priority. With SR-TE there's nothing to
+  preempt in the core (no reservation state), so bandwidth contention is resolved
+  **centrally by a stateful PCE** deciding which policies get which paths.
+
+The pattern is consistent: RSVP-TE solves these *in the network, hop by hop*; SR-TE moves
+the intelligence to the *edge and the controller*. That's the same "less core state, central
+smarts" story — and exactly why SR pairs so naturally with PCE
+([`INTER-AREA-TE-and-PCE.md`](INTER-AREA-TE-and-PCE.md)).
 
 ---
 

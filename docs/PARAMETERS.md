@@ -47,13 +47,44 @@ or a percentage of it (some operators reserve 80% to leave headroom for non-TE t
 (more bandwidth, better metric) and re-signals if so.
 **If missing:** tunnels stay on their current path even if a better one opens up.
 
-### `auto-tunnel backup tunnel-id min 100 max 200` — [PER-DEVICE] (on PLRs)
-**Job:** automatically creates RSVP bypass tunnels for every MPLS-TE-enabled interface,
-using tunnel IDs from the specified range.
-**If missing:** FRR will not work even if `fast-reroute` is on the protected tunnel —
-there is no bypass tunnel to redirect to.
-**Must match?** Enable on every P router (the PLRs). The tunnel-id range must not
-overlap with manually configured tunnel-te interfaces.
+### `auto-tunnel backup tunnel-id min 100 max 200` (global) — [PER-DEVICE] (on PLRs)
+**Job:** sets the tunnel-id *pool* used for auto-created RSVP bypass tunnels.
+**Important:** the global line alone does **not** protect anything — protection is enabled
+**per interface** with `mpls traffic-eng interface X / auto-tunnel backup` on the on-path
+egress link. (Lab lesson: a per-interface line on the *wrong* interface protects nothing.)
+**If missing:** FRR won't work even with `fast-reroute` on the tunnel — no bypass exists.
+**Must match?** Enable on every PLR. The tunnel-id range must not overlap manual tunnels.
+
+### `ipv4 unnumbered mpls traffic-eng Loopback0` (global) — [PER-DEVICE] (on PLRs)
+**Job:** gives **auto-created** TE tunnels (bypass backups) their source IP address.
+**If missing:** every auto-tunnel backup stays `Oper: down` with
+*"No IP source address is configured"* (`Src: 0.0.0.0`) — and FRR silently never arms.
+Manual `tunnel-te` interfaces don't need it (they have `ipv4 unnumbered` on the interface);
+auto-tunnels need this global form. **Required on any router running `auto-tunnel backup`.**
+
+---
+
+## Affinity / admin-group coloring (Phase 7)
+
+### `affinity-map NAME bit-position N` under `mpls traffic-eng` — [DOMAIN-WIDE]
+**Job:** maps a human name (GOLD) to an admin-group bit (0). Tunnels reference the name.
+**Must match?** **Yes — identical on every router**, or a color means different things in
+different places. (GOLD=bit 0, BRONZE=bit 1 here.)
+
+### `attribute-names NAME` under `mpls traffic-eng interface X` — [PER-DEVICE] (per link)
+**Job:** paints a link with one or more affinity colors. Color **both ends** of a link
+consistently. Uncolored = no admin-group bits set.
+**If wrong:** the link is considered the wrong color and tunnels include/exclude it wrongly.
+
+### `affinity include NAME` / `affinity exclude NAME` — [PER-TUNNEL] (named model)
+**Job:** constrains CSPF to links that carry (include) / don't carry (exclude) the color.
+`include` makes color a hard constraint on every hop.
+
+### `affinity 0x0 mask 0x0` — [PER-TUNNEL] (legacy bitmap; "ignore colors")
+**Job:** mask = which bits to check; `mask 0x0` = check none = accept any link.
+**Why you need it:** the **default** tunnel affinity is `0x0/0xffff` = *"uncolored links
+only."* Once links are colored, a tunnel without its own affinity goes down with
+`No path (affinity)`. Set `affinity 0x0 mask 0x0` so it rides colored links too.
 
 ---
 
@@ -106,6 +137,33 @@ the bypass tunnel.
 **Job:** what type of protection to request.
 - `protect bandwidth`: bypass must have enough bandwidth for this tunnel
 - `protect node`: use NNHOP bypass for node protection, not just link protection
+**Note:** node protection needs a next-next hop to bypass to — impossible where the next
+hop is the tail (the PLR can only do link protection there).
+
+### `path-option N explicit name X verbatim` — [PER-TUNNEL]
+**Job:** the `verbatim` keyword signals the explicit hops **as-is**, skipping CSPF and
+affinity/bandwidth verification. Use it to force a path regardless of constraints.
+**Caution:** it only bypasses the *policy* check — RSVP signalling and reachability still
+apply, so a verbatim path can still fail with a *Signalled* error if the network can't build it.
+
+### `auto-bw` block — [PER-TUNNEL] (headend)
+```
+auto-bw
+ application <minutes>            ! resize interval (5 min min; default 1440 = 24h)
+ bw-limit min <kbps> max <kbps>   ! clamp the auto-sized reservation
+ adjustment-threshold <percent>   ! only resize if measured rate differs by > this
+```
+**Job:** the tunnel measures its own traffic and resizes `signalled-bandwidth` to match,
+within min/max, make-before-break. **If missing:** the reservation stays at the static
+value you guessed. Use a long `application` in production; short only for lab observation.
+
+### `priority <setup> <hold>` — [PER-TUNNEL]
+**Job:** DS-TE preemption priority, `0` (best) to `7` (worst), default `7 7`.
+- **setup** = how aggressively this tunnel preempts others when establishing
+- **hold** = how strongly it resists being preempted once up
+**Rule:** a new tunnel preempts an existing one when `new setup < existing hold`. Give
+critical tunnels low numbers; pair best-effort tunnels with a `dynamic` fallback so being
+preempted means reroute, not outage.
 
 ---
 
@@ -118,9 +176,15 @@ the bypass tunnel.
 | RSVP bandwidth | per-interface | reservable pool; set to line rate or % of it |
 | `mpls traffic-eng interface` | per-device | enables TE on that link |
 | `reoptimize` | local | periodic re-computation; 300s default |
-| `auto-tunnel backup` | per-PLR | auto-creates bypass tunnels; needed for FRR |
-| `explicit-path` | per-tunnel | strict hop list; wrong address = tunnel down |
-| `path-option` | per-tunnel | ordered fallback list; always add `dynamic` as last |
+| `auto-tunnel backup` | per-PLR | tunnel-id pool; protection enabled **per-interface** |
+| `ipv4 unnumbered mpls traffic-eng` | per-PLR | source for auto-tunnels; missing = backups down |
+| `explicit-path` | per-tunnel | strict/loose hop list; wrong address = tunnel down |
+| `path-option` (+`verbatim`) | per-tunnel | ordered fallback list; `verbatim` skips CSPF/affinity |
 | `signalled-bandwidth` | per-tunnel | kbps reserved; too high = no path found |
 | `autoroute announce` | per-tunnel | injects tunnel into routing table |
 | `fast-reroute` | per-tunnel | enables FRR; needs bypass tunnels on PLRs |
+| `affinity-map` | domain-wide | name → admin-group bit; must match everywhere |
+| `attribute-names` | per-link | paints a link with a color |
+| `affinity include/exclude` / `0x0 mask 0x0` | per-tunnel | steer by color; default is "uncolored only" |
+| `auto-bw` | per-tunnel | resizes reservation from measured traffic |
+| `priority <setup> <hold>` | per-tunnel | DS-TE preemption; 0 best, 7 worst |

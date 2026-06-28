@@ -86,6 +86,37 @@ and 4.4.4.4 resolves via the tunnel, the VPN label is transported inside the tun
 label — you get the same two-label stack as always, but the outer label now belongs
 to the TE tunnel, not an LDP path.
 
+**Phase 7 — Affinity / admin-group coloring.**
+Instead of hard-coding hops (Phase 3) or letting CSPF pick freely (Phase 4), you steer
+*by policy*. Each link gets an admin-group bit, named via an `affinity-map` (GOLD=bit 0,
+BRONZE=bit 1). A tunnel's `affinity include GOLD` makes CSPF treat the color as a hard
+constraint — only GOLD links are eligible. Change the color and the path moves, with no
+explicit hops. This is how operators keep traffic off (say) high-latency or paid links.
+
+*The trap that catches everyone:* the **default** tunnel affinity is `0x0/0xffff`, which
+means *"use only links with no admin-group bits set"* — i.e. uncolored links only. The
+moment you color links, any tunnel **without** its own affinity can't find an all-uncolored
+path and goes down with `No path (affinity)`. Fix: `affinity 0x0 mask 0x0` (ignore colors).
+
+*Explicit + affinity + `verbatim`:* an explicit path is still CSPF-verified against affinity
+by default, so a wrong-colored hop drops it. `verbatim` turns that check off and signals the
+hops as-is — but it only bypasses the *policy* check, not signalling or reachability.
+
+**Phase 8 — Auto-bandwidth.**
+A static `signalled-bandwidth` is a guess. Auto-bw measures the tunnel's real output rate
+and, each *application period*, resizes the reservation to match — clamped between min/max,
+make-before-break (a new LSP is signalled at the new size, then traffic cuts over). The
+reservation tracks demand up in the busy hour and back down at night, untouched by humans.
+
+**Phase 9 — Priority + preemption (DS-TE).**
+This answers "what happens when there isn't enough bandwidth?" A reservation is *admission
+bookkeeping*, not a policer — over-sending a tunnel drops nothing and keeps it up. The only
+way bandwidth takes a tunnel **down** is preemption: each tunnel has a **setup** and **hold**
+priority (0 best, 7 worst), and a new tunnel preempts an existing one when
+`new setup < existing hold`. So a high-priority tunnel can tear a low-priority one off a full
+link to claim the room. Give critical services low priority numbers; give best-effort tunnels
+a dynamic fallback so being preempted means *reroute*, not outage.
+
 ---
 
 ## Key terms
@@ -104,10 +135,18 @@ to the TE tunnel, not an LDP path.
 | **signalled-bandwidth** | The bandwidth RSVP will reserve along the path |
 | **FRR / bypass tunnel** | Pre-signaled detour tunnel around a protected link or node |
 | **PLR** | The router upstream of a failure that performs local repair |
-| **NHOP bypass** | Bypass tunnel going to the next-next-hop — protects a link |
-| **NNHOP bypass** | Bypass tunnel going to the next-next-next-hop — protects a node |
+| **NHOP bypass** | Bypass to the **next-hop** (merge point = next hop) — protects a **link** |
+| **NNHOP bypass** | Bypass to the **next-next-hop** (skips the next node) — protects a **node** |
 | **PHP** | Penultimate Hop Popping — second-to-last router removes label |
 | **LDP** | Label Distribution Protocol — distributes labels for all IGP prefixes, shortest path only |
+| **admin-group / affinity** | A "color" bit on a link; tunnels include/exclude colors to steer by policy |
+| **affinity-map** | Maps a name (GOLD) to an admin-group bit position; must match network-wide |
+| **attribute-names** | Per-interface command that paints the link with an affinity color |
+| **default affinity `0x0/0xffff`** | A tunnel's implicit constraint = "uncolored links only" — coloring links can break tunnels that never mention affinity |
+| **verbatim** | Path-option keyword: signal the explicit hops as-is, skipping CSPF/affinity verification |
+| **auto-bandwidth** | Tunnel resizes its own reservation from measured traffic, within min/max |
+| **setup / hold priority** | 0 (best) – 7 (worst); setup = how aggressively it preempts, hold = how well it resists being preempted |
+| **preemption** | A higher-priority tunnel tears down a lower-priority one to claim its bandwidth (hard = instant, soft = graceful reroute first) |
 
 ---
 
@@ -144,3 +183,25 @@ holds state for every tunnel passing through it. SR-TE pushes state to the heade
 only — the core is stateless. SR-TE is also simpler to provision (no explicit-path
 IP addresses, just SID labels), integrates naturally with controllers (PCE/SDN), and
 TI-LFA is automatic without extra bypass tunnel configuration.
+
+**If a tunnel reserves 100M but you send 500M through it, what happens?**
+By default, nothing — the tunnel stays up and no packets are dropped *because of the
+reservation*. A reservation is admission-control bookkeeping (it governs CSPF path
+selection and per-link accounting), not a data-plane policer. To actually enforce the
+rate you add a separate QoS policer/shaper. The only way bandwidth takes a tunnel *down*
+is preemption: when the books are full and a higher-priority tunnel needs the room, it
+preempts a lower-priority one (`setup < hold`). If you over-send past physical capacity
+you get ordinary congestion drops on the wire — not the tunnel reacting.
+
+**You added link coloring and an unrelated tunnel went down. Why?**
+Because every tunnel has a **default affinity of `0x0/0xffff`** = "use only uncolored
+links." Once you paint links with admin-groups, a tunnel that never set its own affinity
+can no longer find an all-uncolored path and fails with `No path (affinity)`. Give such
+tunnels `affinity 0x0 mask 0x0` (ignore colors) or an explicit `include` that matches the
+colors on its path. This is a classic real-world incident.
+
+**How do you steer a tunnel across IGP area boundaries?**
+The TE database is per-area, so the headend can't run end-to-end CSPF across a boundary.
+Either use **loose hops** at the ABRs (each area expands its own segment), or a **PCE**
+fed by **BGP-LS** that has the full multi-area topology and computes the path centrally
+(the modern, SR-friendly way). See [`INTER-AREA-TE-and-PCE.md`](INTER-AREA-TE-and-PCE.md).

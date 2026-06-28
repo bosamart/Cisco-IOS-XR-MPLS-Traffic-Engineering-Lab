@@ -46,7 +46,7 @@ SR-MPLS lab: ../SR-MPLS/ — same topology, same services, SR transport instead 
 
 ## Lessons Learned
 - `show clns interface brief` is IOS, not IOS-XR — use `show isis interface brief` on XR.
-- Configs are cumulative (all 6 phases), so Phase 2 forwarding already shows L3VPN
+- Configs are cumulative (all base phases), so Phase 2 forwarding already shows L3VPN
   labels (CUST-A aggregate, CE1 prefix) and `Tunnel=Yes` on interfaces. Expected.
 - ImpNull (implicit-null) on directly-connected prefixes is what drives PHP.
 - Phase 3: a TE tunnel needs BOTH IGP TE flooding on every router in the path AND a

@@ -34,7 +34,7 @@ before Segment Routing, and understanding it makes SR-TE's advantages obvious.
 For those who already know IOS XR and just want to build it:
 
 1. Build the topology in EVE-NG (6 nodes — wire per the [link table below](#addressing-plan)).
-2. Paste each device's full config from [`configs/`](configs/) — `R1.txt`–`R4.txt`, `CE1.txt`, `CE2.txt` are **cumulative** (all 6 phases). New XR interfaces may come up admin-down — `no shutdown` when pasting.
+2. Paste each device's full config from [`configs/`](configs/) — `R1.txt`–`R4.txt`, `CE1.txt`, `CE2.txt` are **cumulative** (base Phases 1–8; the Phase 7b and Phase 9 tunnels are throwaway experiments, run from the README, not in the base configs). New XR interfaces may come up admin-down — `no shutdown` when pasting.
 3. Verify end to end:
 
 ```

@@ -134,7 +134,7 @@ penultimate hop (PHP). ECMP is visible across both R2 and R3 paths.
   the far PE 4.4.4.4/32. ✔
 - **Data plane:** traceroute proves labelled transit with PHP before the tail. ✔
 
-**Note — cumulative config:** the device configs are cumulative (all 6 phases), so
+**Note — cumulative config:** the device configs are cumulative (all base phases), so
 R1's forwarding table already shows the L3VPN labels (`24006` CUST-A aggregate,
 `24007` 11.11.11.11/32). In a strict phase-by-phase build these would not appear
 until Phase 6. Likewise `show mpls interfaces` shows `Tunnel=Yes` because MPLS-TE
